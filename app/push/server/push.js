@@ -1,11 +1,11 @@
+import * as admin from 'firebase-admin';
 import { Meteor } from 'meteor/meteor';
 import { Match, check } from 'meteor/check';
 import { Mongo } from 'meteor/mongo';
 import { HTTP } from 'meteor/http';
 import _ from 'underscore';
 
-import { initAPN, sendAPN } from './apn';
-import { sendGCM } from './gcm';
+import { sendFCM } from './fcm';
 import { logger, LoggerManager } from './logger';
 import { settings } from '../../settings/server';
 
@@ -41,13 +41,17 @@ export class PushClass {
 			throw new Error('Configure should not be called more than once!');
 		}
 
+		if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+			throw new Error('Cannot init Firebase Admin App without env var `GOOGLE_APPLICATION_CREDENTIALS`!');
+		}
+		logger.debug('Firebase Admin App initialized');
+		admin.initializeApp({
+			credential: admin.credential.applicationDefault(),
+		});
+
 		this.isConfigured = true;
 
 		logger.debug('Configure', this.options);
-
-		if (this.options.apn) {
-			initAPN({ options: this.options, absoluteUrl: Meteor.absoluteUrl() });
-		}
 	}
 
 	sendWorker(task, interval) {
@@ -79,25 +83,28 @@ export class PushClass {
 	sendNotificationNative(app, notification, countApn, countGcm) {
 		logger.debug('send to token', app.token);
 
+		if (!this.options.gcm || !this.options.gcm.apiKey) {
+			logger.debug('cannot send to token without API key');
+			return;
+		}
+
+		let token = '';
 		if (app.token.apn) {
 			countApn.push(app._id);
-			// Send to APN
-			if (this.options.apn) {
-				notification.topic = app.appName;
-				sendAPN({ userToken: app.token.apn, notification, _removeToken: this._removeToken });
-			}
+			token = app.token.apn;
 		} else if (app.token.gcm) {
 			countGcm.push(app._id);
-
-			// Send to GCM
-			// We do support multiple here - so we should construct an array
-			// and send it bulk - Investigate limit count of id's
-			if (this.options.gcm && this.options.gcm.apiKey) {
-				sendGCM({ userTokens: app.token.gcm, notification, _replaceToken: this._replaceToken, _removeToken: this._removeToken, options: this.options });
-			}
-		} else {
+			token = app.token.gcm;
+		}
+		if (!token) {
 			throw new Error('send got a faulty query');
 		}
+		sendFCM({
+			userTokens: token,
+			notification,
+			_removeToken: this._removeToken,
+			options: this.options,
+		});
 	}
 
 	sendGatewayPush(gateway, service, token, notification, tries = 0) {
