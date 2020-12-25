@@ -1,8 +1,9 @@
-import { firebase } from 'firebase-admin';
-import { EJSON } from 'meteor/ejson';
-import { moment } from 'moment';
+import EJSON from 'meteor/ejson';
+import moment from 'moment';
 
-import { logger } from './logger';
+import logger from './logger';
+
+const firebase = require('firebase-admin');
 
 export const sendFCM = function({ userTokens, notification, _removeToken }) {
 	// Make sure userTokens are an array of strings
@@ -18,57 +19,59 @@ export const sendFCM = function({ userTokens, notification, _removeToken }) {
 
 	logger.debug('sendFCM', userTokens, notification);
 
-	// Reference: https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages
-	const payload = notification.payload ? { ejson: EJSON.stringify(notification.payload) } : {};
-	const message = {
-		tokens: userTokens,
-		data: payload,
-	};
+	const now = moment();
 
-	const notiConf = {
+	// Reference: https://notifee.app/react-native/reference/notification
+	const notifeeData = {
+		id: notification.notId,
 		title: notification.title,
 		body: notification.text,
+		android: {
+			category: 'MESSAGE',
+			channelId: notification.android_channel_id,
+			groupId: notification.from,
+			groupSummary: true,
+			importance: 'HIGH',
+			sound: notification.sound,
+			style: { type: 'INBOX' },
+			timestamp: now.milliseconds(),
+			visibility: 'PRIVATE',
+		},
+		ios: {
+			badgeCount: notification.badge,
+			categoryId: notification.category,
+			sound: notification.sound,
+			threadId: notification.from,
+		},
 	};
-	const androidConf = {
-		collapse_key: notification.from,
-		priority: 'HIGH',
-		ttl: '1h',
-	};
-	// Reference: https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns
-	const apnsConf = {
-		alert: {
+	const message = {
+		tokens: userTokens,
+		notification: {
 			title: notification.title,
 			body: notification.text,
+			image: notification.image,
 		},
-		badge: notification.badge,
-		category: notification.category,
-	};
-	if (notification.image != null) {
-		notiConf.image = notification.image;
-	}
-	if (notification.android_channel_id != null) {
-		androidConf.channel_id = notification.android_channel_id;
-	} else {
-		logger.debug('For devices running Android 8.0 or later you are required to provide an android_channel_id. See https://github.com/raix/push/issues/341 for more info');
-	}
-	if (notification.contentAvailable != null) {
-		apnsConf['content-available'] = notification.contentAvailable;
-	}
-	if (notification.sound != null) {
-		apnsConf.sound = notification.sound;
-		message.sound = notification.sound;
-	}
-	message.notification = notiConf;
-	message.android = androidConf;
-	message.apns = {
-		headers: {
-			'apns-push-type': 'alert',
-			'apns-id': notification.notId,
-			'apns-expiration': moment.unix() + 3600,
-			'apns-priority': notification.priority || notification.priority === 0 ? notification.priority : 10,
-			'apns-collapse-id': crypto.createHash('sha256').update(notification.from, 'utf8').digest('hex'), // 64 bytes limit
+		data: {
+			notifee: notifeeData,
+			ejson: notification.payload ? EJSON.stringify(notification.payload) : null,
 		},
-		payload: Object.assign(payload, { aps: apnsConf }),
+		android: {
+			ttl: '1h',
+		},
+		apns: {
+			headers: {
+				'apns-push-type': 'alert',
+				'apns-id': notification.notId,
+				'apns-expiration': moment.unix() + 3600,
+				'apns-priority': notification.priority || notification.priority === 0 ? notification.priority : 10,
+				'apns-collapse-id': crypto.createHash('sha256').update(notification.from, 'utf8').digest('hex'), // 64 bytes limit
+			},
+			payload: {
+				aps: {
+					'content-available': notification.contentAvailable,
+				},
+			},
+		},
 	};
 
 	userTokens.forEach((value, idx) => logger.debug(`Send message to token ${ idx }: ${ value }`));

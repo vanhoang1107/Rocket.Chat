@@ -1,4 +1,3 @@
-import { firebase } from 'firebase-admin';
 import { Meteor } from 'meteor/meteor';
 import { Match, check } from 'meteor/check';
 import { Mongo } from 'meteor/mongo';
@@ -8,6 +7,8 @@ import _ from 'underscore';
 import { sendFCM } from './fcm';
 import { logger, LoggerManager } from './logger';
 import { settings } from '../../settings/server';
+
+const firebase = require('firebase-admin');
 
 export const _matchToken = Match.OneOf({ apn: String }, { gcm: String });
 export const appTokensCollection = new Mongo.Collection('_raix_push_app_tokens');
