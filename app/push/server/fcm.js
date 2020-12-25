@@ -1,10 +1,10 @@
-import * as admin from 'firebase-admin';
+import { firebase } from 'firebase-admin';
 import { EJSON } from 'meteor/ejson';
 import { moment } from 'moment';
 
 import { logger } from './logger';
 
-export const sendFCM = function({ userTokens, notification, _removeToken, options }) {
+export const sendFCM = function({ userTokens, notification, _removeToken }) {
 	// Make sure userTokens are an array of strings
 	if (typeof userTokens === 'string') {
 		userTokens = [userTokens];
@@ -73,7 +73,7 @@ export const sendFCM = function({ userTokens, notification, _removeToken, option
 
 	userTokens.forEach((value, idx) => logger.debug(`Send message to token ${ idx }: ${ value }`));
 
-	admin.messaging().sendMulticast(message)
+	firebase.messaging().sendMulticast(message)
 		.then((response) => {
 			response.responses.forEach((resp, idx) => {
 				logger.debug(`sendFCM: Result of sender ${ idx }: ${ JSON.stringify(resp) }`);

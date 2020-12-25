@@ -1,4 +1,4 @@
-import * as admin from 'firebase-admin';
+import { firebase } from 'firebase-admin';
 import { Meteor } from 'meteor/meteor';
 import { Match, check } from 'meteor/check';
 import { Mongo } from 'meteor/mongo';
@@ -45,8 +45,8 @@ export class PushClass {
 			throw new Error('Cannot init Firebase Admin App without env var `GOOGLE_APPLICATION_CREDENTIALS`!');
 		}
 		logger.debug('Firebase Admin App initialized');
-		admin.initializeApp({
-			credential: admin.credential.applicationDefault(),
+		firebase.initializeApp({
+			credential: firebase.credential.applicationDefault(),
 		});
 
 		this.isConfigured = true;
