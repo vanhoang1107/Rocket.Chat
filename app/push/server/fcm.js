@@ -1,8 +1,12 @@
-import { firebase } from 'firebase-admin';
 import { EJSON } from 'meteor/ejson';
-import { moment } from 'moment';
 
 import { logger } from './logger';
+
+
+const crypto = require('crypto');
+
+const firebase = require('firebase-admin');
+const moment = require('moment');
 
 export const sendFCM = function({ userTokens, notification, _removeToken }) {
 	// Make sure userTokens are an array of strings
@@ -20,6 +24,7 @@ export const sendFCM = function({ userTokens, notification, _removeToken }) {
 
 	// Reference: https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages
 	const payload = notification.payload ? { ejson: EJSON.stringify(notification.payload) } : {};
+	const ttlSeconds = 3600;
 	const message = {
 		tokens: userTokens,
 		data: payload,
@@ -30,18 +35,24 @@ export const sendFCM = function({ userTokens, notification, _removeToken }) {
 		body: notification.text,
 	};
 	const androidConf = {
-		collapse_key: notification.from,
-		priority: 'HIGH',
-		ttl: '1h',
+		icon: '@drawable/ic_notification',
 	};
 	// Reference: https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns
-	const apnsConf = {
+	const apnsPayLoad = {
 		alert: {
 			title: notification.title,
 			body: notification.text,
 		},
 		badge: notification.badge,
 		category: notification.category,
+		threadId: notification.from,
+	};
+	const apnsHeaders = {
+		'apns-push-type': 'alert',
+		'apns-topic': notification.topic,
+		'apns-expiration': (moment().unix() + ttlSeconds).toString(),
+		'apns-priority': (notification.priority || notification.priority === 0 ? notification.priority : 10).toString(),
+		'apns-collapse-id': crypto.createHash('sha256').update(notification.from, 'utf8').digest('hex'), // 64 bytes limit
 	};
 	if (notification.image != null) {
 		notiConf.image = notification.image;
@@ -51,24 +62,26 @@ export const sendFCM = function({ userTokens, notification, _removeToken }) {
 	} else {
 		logger.debug('For devices running Android 8.0 or later you are required to provide an android_channel_id. See https://github.com/raix/push/issues/341 for more info');
 	}
-	if (notification.contentAvailable != null) {
-		apnsConf['content-available'] = notification.contentAvailable;
-	}
 	if (notification.sound != null) {
-		apnsConf.sound = notification.sound;
-		message.sound = notification.sound;
+		androidConf.sound = notification.sound;
+		apnsPayLoad.sound = notification.sound;
+	}
+	if (notification.contentAvailable != null) {
+		apnsPayLoad.contentAvailable = notification.contentAvailable;
+	}
+	if (notification.notId != null) {
+		apnsHeaders['apns-id'] = notification.notId;
 	}
 	message.notification = notiConf;
-	message.android = androidConf;
+	message.android = {
+		collapse_key: notification.from,
+		priority: 'high',
+		ttl: ttlSeconds * 1000,
+		notification: androidConf,
+	};
 	message.apns = {
-		headers: {
-			'apns-push-type': 'alert',
-			'apns-id': notification.notId,
-			'apns-expiration': moment.unix() + 3600,
-			'apns-priority': notification.priority || notification.priority === 0 ? notification.priority : 10,
-			'apns-collapse-id': crypto.createHash('sha256').update(notification.from, 'utf8').digest('hex'), // 64 bytes limit
-		},
-		payload: Object.assign(payload, { aps: apnsConf }),
+		headers: apnsHeaders,
+		payload: Object.assign({ aps: apnsPayLoad }, payload),
 	};
 
 	userTokens.forEach((value, idx) => logger.debug(`Send message to token ${ idx }: ${ value }`));
