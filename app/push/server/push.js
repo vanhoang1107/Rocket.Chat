@@ -9,6 +9,10 @@ import { sendGCM } from './gcm';
 import { logger, LoggerManager } from './logger';
 import { settings } from '../../settings/server';
 
+// --- FCM integration, not fully tested => reserve for future use.
+// import { sendFCM } from './fcm';
+// const firebase = require('firebase-admin');
+
 export const _matchToken = Match.OneOf({ apn: String }, { gcm: String });
 export const appTokensCollection = new Mongo.Collection('_raix_push_app_tokens');
 
@@ -41,13 +45,22 @@ export class PushClass {
 			throw new Error('Configure should not be called more than once!');
 		}
 
-		this.isConfigured = true;
-
-		logger.debug('Configure', this.options);
+		// --- FCM integration, not fully tested => reserve for future use.
+		// if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+		// 	throw new Error('Cannot init Firebase Admin App without env var `GOOGLE_APPLICATION_CREDENTIALS`!');
+		// }
+		// logger.debug('Firebase Admin App initialized');
+		// firebase.initializeApp({
+		// 	credential: firebase.credential.applicationDefault(),
+		// });
 
 		if (this.options.apn) {
 			initAPN({ options: this.options, absoluteUrl: Meteor.absoluteUrl() });
 		}
+
+		this.isConfigured = true;
+
+		logger.debug('Configure', this.options);
 	}
 
 	sendWorker(task, interval) {
@@ -99,6 +112,35 @@ export class PushClass {
 			throw new Error('send got a faulty query');
 		}
 	}
+
+	// --- FCM integration, not fully tested => reserve for future use.
+	// sendNotificationNative(app, notification, countApn, countGcm) {
+	// 	logger.debug('send to token', app.token);
+
+	// 	if (!this.options.gcm || !this.options.gcm.apiKey) {
+	// 		logger.debug('cannot send to token without API key');
+	// 		return;
+	// 	}
+	// 	notification.topic = app.appName;
+
+	// 	let token = '';
+	// 	if (app.token.apn) {
+	// 		countApn.push(app._id);
+	// 		token = app.token.apn;
+	// 	} else if (app.token.gcm) {
+	// 		countGcm.push(app._id);
+	// 		token = app.token.gcm;
+	// 	}
+	// 	if (!token) {
+	// 		throw new Error('send got a faulty query');
+	// 	}
+	// 	sendFCM({
+	// 		userTokens: token,
+	// 		notification,
+	// 		_removeToken: this._removeToken,
+	// 		options: this.options,
+	// 	});
+	// }
 
 	sendGatewayPush(gateway, service, token, notification, tries = 0) {
 		notification.uniqueId = this.options.uniqueId;

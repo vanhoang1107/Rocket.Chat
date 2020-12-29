@@ -1,4 +1,4 @@
-import hljs from 'highlight.js/lib/highlight';
+import hljs from 'highlight.js/lib/core';
 // import onec from 'highlight.js/lib/languages/1c';
 // import abnf from 'highlight.js/lib/languages/abnf';
 // import accesslog from 'highlight.js/lib/languages/accesslog';
