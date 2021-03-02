@@ -81,3 +81,5 @@ tests/end-to-end/temporary_staged_test
 /storybook-static
 /tests/cypress/screenshots
 .history/
+coverage
+.nyc_output
